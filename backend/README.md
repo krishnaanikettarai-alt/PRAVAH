@@ -1,19 +1,25 @@
 # PRAVAH backend
 
-The backend is the AWS serverless foundation for PRAVAH. It currently
-provides a single health endpoint and is intentionally free of persistent
-storage, external integrations, authentication, and notification resources.
+The backend is the AWS serverless foundation for PRAVAH. It currently provides
+a health endpoint and the DynamoDB infrastructure and data model for future
+citizen reports. The citizen report API is not implemented yet. It remains
+intentionally free of external integrations, authentication, and notification
+resources.
 
 ## Architecture
 
 - **Amazon API Gateway** exposes the HTTP API.
 - **AWS Lambda** runs the TypeScript health handler.
+- **Amazon DynamoDB** provides the on-demand `ReportsTable` foundation.
 - **AWS SAM** defines and builds the serverless application locally.
 - **Node.js 22.x and TypeScript** provide the runtime and source language.
 
 The `STAGE` environment variable is configured by SAM, while `AWS_REGION` is
 read from Lambda's built-in runtime environment through the backend
-configuration module. No secrets are stored in the repository.
+configuration module. The table name is not injected into the health function
+because no report handler consumes it yet; it will be provided through
+environment configuration when that API is introduced. No secrets are stored
+in the repository.
 
 ## Prerequisites
 
@@ -69,3 +75,11 @@ curl http://127.0.0.1:3000/health
   "version": "0.1.0"
 }
 ```
+
+## DynamoDB foundation
+
+The SAM template creates an on-demand `ReportsTable` with `reportId` as its
+string partition key. The report model is defined in
+`src/models/report.ts`, but no report read or write API is implemented in this
+phase. The table does not store image binaries; `imageKey` is reserved for a
+future S3 object reference.

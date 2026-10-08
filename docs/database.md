@@ -1,8 +1,9 @@
-# Planned data model
+# Data model
 
-The database is not implemented yet. The entities below describe the
-information the MVP is expected to retain in DynamoDB, with images and other
-large objects in S3.
+Phase 2A provisions the initial DynamoDB table for citizen reports. The
+entities below describe the information the MVP is expected to retain in
+DynamoDB, with images and other large objects reserved for S3 in a later
+phase.
 
 ## Environmental and weather observations
 
@@ -35,11 +36,38 @@ official warnings or validated flood predictions.
 
 ## Citizen reports
 
-A citizen report captures an observed local condition. Planned fields include
-an identifier, report category, description, observation timestamp, server
-creation timestamp, location, optional severity indication, and processing
-status. The MVP does not include user accounts, so the design must avoid
-assuming an authenticated reporter identity.
+Phase 2A creates the `ReportsTable` DynamoDB table for citizen
+environmental/flood/waterlogging reports. Its physical name is
+`pravah-reports-${Stage}` and its primary key is:
+
+| Attribute | Type | Key role |
+| --- | --- | --- |
+| `reportId` | String | Partition key |
+
+The table uses `PAY_PER_REQUEST` billing to avoid provisioned-capacity charges
+while the MVP usage pattern is unknown. No GSI is currently required because
+the report API and its access patterns have not been implemented yet.
+
+The current TypeScript model contains:
+
+- `reportId: string`
+- `latitude: number`
+- `longitude: number`
+- `timestamp: string` (ISO 8601)
+- `waterDepthCm?: number`
+- `severity: LOW | MODERATE | HIGH | CRITICAL`
+- `description?: string`
+- `source: CITIZEN`
+- `imageKey?: string` (future S3 object reference only)
+- `createdAt: string` (ISO 8601)
+
+The model does not contain user identity fields or image binary data.
+Validation and DynamoDB read/write behavior will be added with the citizen
+report API in a later phase. Geographic or time-based querying may require a
+future key design or GSI after actual query patterns are validated.
+
+This is an MVP engineering model for storing citizen observations. It is not a
+scientifically validated environmental data model.
 
 ## Image metadata
 
@@ -80,9 +108,10 @@ generalization will be decided before citizen reporting is implemented.
 
 ## Storage and access principles
 
-DynamoDB access patterns should be designed around the MVP queries: recent
-risk by location, reports within an area and time range, and report-to-image
-or report-to-analysis lookup. S3 is reserved for binary objects. Retention,
-privacy, cost controls, and backup requirements will be finalized before
-creating cloud resources.
-
+DynamoDB access patterns should eventually be designed around the MVP queries:
+recent risk by location, reports within an area and time range, and
+report-to-image or report-to-analysis lookup. The current table has only the
+report identifier key; additional geographic or time-oriented indexes should
+be added only when the API access patterns justify them. S3 is reserved for
+binary objects. Retention, privacy, cost controls, and backup requirements
+will be finalized before broader production use.
