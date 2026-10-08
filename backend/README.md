@@ -83,3 +83,17 @@ string partition key. The report model is defined in
 `src/models/report.ts`, but no report read or write API is implemented in this
 phase. The table does not store image binaries; `imageKey` is reserved for a
 future S3 object reference.
+
+## Citizen reports API
+
+The reports Lambda provides:
+
+- `POST /reports` to validate and store a citizen report in DynamoDB.
+- `GET /reports` to return stored reports.
+
+The reports function receives the table name through `REPORTS_TABLE_NAME` and
+has only `dynamodb:PutItem` and `dynamodb:Scan` permissions. `GET /reports`
+currently uses a DynamoDB `Scan`, which is suitable only for the small MVP
+table and must be replaced with access-pattern-driven querying before
+production scale. See [docs/api.md](../docs/api.md) for request fields,
+validation rules, response examples, and status codes.

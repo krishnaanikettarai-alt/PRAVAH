@@ -1,89 +1,128 @@
-# Planned MVP API
+# MVP API
 
-These endpoints describe the intended MVP contract. They are documentation
-only; no API has been implemented yet.
+These endpoints describe the current MVP contract. The health and citizen
+report endpoints are implemented; risk remains planned.
 
 ## Conventions
 
-- Responses will be JSON.
-- Timestamps will use ISO 8601 in UTC.
-- Locations will use latitude and longitude, with a documented coordinate
-  reference system.
-- Risk results will include source or observation timestamps and an
-  explanation where available.
-- Validation and error response shapes will be finalized before implementation.
+- Responses are JSON.
+- Timestamps use ISO 8601 in UTC.
+- Locations use numeric latitude and longitude.
+- Authentication is not part of this phase.
 
 ## `GET /health`
 
-Returns service availability and a minimal version or environment indicator.
+Returns service availability.
 
-**Planned response:** `200 OK`
+**Response:** `200 OK`
 
 ```json
 {
   "status": "ok",
   "service": "pravah-api",
-  "timestamp": "2026-01-01T00:00:00Z"
+  "version": "0.1.0"
 }
 ```
-
-## `GET /risk`
-
-Returns risk intelligence for a requested location or area.
-
-**Planned query parameters:**
-
-- `lat` and `lon` for a point query.
-- Optional `radius` or bounding-box parameters for an area query.
-- Optional time or freshness parameters, to be defined with the data model.
-
-**Planned response fields:**
-
-- Risk category and score.
-- Location and evaluation timestamp.
-- Contributing signals and their source timestamps.
-- Explanation, limitations, and data quality indicators.
-
-The response will distinguish an indicative risk assessment from an official
-warning or scientifically validated prediction.
 
 ## `POST /reports`
 
 Creates a citizen report about observed waterlogging, flooding, drainage, or
 related local conditions.
 
-**Planned request fields:**
+**Request body:**
 
-- Location.
-- Observation description and category.
-- Observation timestamp.
-- Optional image reference or upload workflow details.
+```json
+{
+  "latitude": 20.2961,
+  "longitude": 85.8245,
+  "timestamp": "2026-10-08T15:30:00Z",
+  "waterDepthCm": 25,
+  "severity": "HIGH",
+  "description": "Water covering the road near the junction"
+}
+```
 
-The implementation will validate payload size, coordinates, timestamps, and
-allowed values before storing a report. Authentication is not part of the
-initial scope.
+Required fields are `latitude`, `longitude`, `timestamp`, and `severity`.
+Optional fields are `waterDepthCm`, `description`, and `imageKey`.
 
-**Planned response:** `201 Created`, containing the report identifier,
-normalized location, and server timestamps.
+Validation rules:
+
+- `latitude` must be a finite number from -90 to 90.
+- `longitude` must be a finite number from -180 to 180.
+- `timestamp` must be an ISO 8601 date/time string.
+- `severity` must be `LOW`, `MODERATE`, `HIGH`, or `CRITICAL`.
+- `waterDepthCm`, when supplied, must be a finite number greater than or
+  equal to zero.
+- `description` and `imageKey`, when supplied, must be strings.
+
+**Response:** `201 Created`
+
+The response contains the stored report, including generated `reportId`,
+`createdAt`, and `source: "CITIZEN"`.
+
+```json
+{
+  "reportId": "2f3a3ad3-5c1c-4e4d-8799-0c0cba0af000",
+  "latitude": 20.2961,
+  "longitude": 85.8245,
+  "timestamp": "2026-10-08T15:30:00Z",
+  "waterDepthCm": 25,
+  "severity": "HIGH",
+  "description": "Water covering the road near the junction",
+  "source": "CITIZEN",
+  "createdAt": "2026-10-08T15:31:00.000Z"
+}
+```
+
+Invalid JSON or fields return `400 Bad Request`:
+
+```json
+{
+  "error": "Invalid request",
+  "message": "latitude must be between -90 and 90"
+}
+```
 
 ## `GET /reports`
 
-Lists citizen reports for a location or time window.
+Lists all stored citizen reports.
 
-**Planned query parameters:**
+**Response:** `200 OK`
 
-- Bounding box or center plus radius.
-- Start and end timestamps.
-- Pagination cursor and page size.
-- Optional report category.
+```json
+{
+  "reports": [
+    {
+      "reportId": "2f3a3ad3-5c1c-4e4d-8799-0c0cba0af000",
+      "latitude": 20.2961,
+      "longitude": 85.8245,
+      "timestamp": "2026-10-08T15:30:00Z",
+      "waterDepthCm": 25,
+      "severity": "HIGH",
+      "description": "Water covering the road near the junction",
+      "source": "CITIZEN",
+      "createdAt": "2026-10-08T15:31:00.000Z"
+    }
+  ]
+}
+```
 
-The response will include report identifiers, locations, observation
-timestamps, descriptions or summaries, image metadata references where
-available, and pagination information.
+The implementation currently uses a DynamoDB `Scan`. This is acceptable only
+for the small MVP table and must be replaced with access-pattern-driven
+queries and an appropriate key/index design before production scale.
 
-## Not yet defined
+## Status codes
 
-Authentication, authorization, rate limits, signed image-upload URLs, exact
-error schemas, and versioning strategy will be designed before these
-endpoints are implemented.
+- `200 OK` — health or report list succeeded.
+- `201 Created` — report was stored.
+- `400 Bad Request` — invalid JSON or report fields.
+- `405 Method Not Allowed` — unsupported method.
+- `500 Internal Server Error` — unexpected service or DynamoDB failure.
 
+Reports are stored in the on-demand DynamoDB `ReportsTable`. Geographic
+querying, pagination, image upload, S3 storage, and risk analysis are not part
+of this phase.
+
+## `GET /risk`
+
+Risk intelligence remains planned and is not implemented.

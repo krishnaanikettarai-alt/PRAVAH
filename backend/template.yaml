@@ -26,7 +26,7 @@ Resources:
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type'"
-        AllowMethods: "'GET,OPTIONS'"
+        AllowMethods: "'GET,POST,OPTIONS'"
 
   HealthFunction:
     Type: AWS::Serverless::Function
@@ -47,6 +47,44 @@ Resources:
           - src/handlers/health.ts
         External:
           - "@aws-sdk/*"
+        Minify: false
+        Sourcemap: true
+        Target: es2022
+
+  ReportsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/reports.handler
+      Environment:
+        Variables:
+          REPORTS_TABLE_NAME: !Ref ReportsTable
+          DYNAMODB_ENDPOINT: ""
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:Scan
+              Resource: !GetAtt ReportsTable.Arn
+      Events:
+        CreateReport:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PravahApi
+            Path: /reports
+            Method: post
+        ListReports:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PravahApi
+            Path: /reports
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/handlers/reports.ts
         Minify: false
         Sourcemap: true
         Target: es2022
