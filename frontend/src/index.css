@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+}
+
+:root {
+  color: #f1f7f4;
+  background: #07100f;
+  font-family: "Inter", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button { font: inherit; }
+
+.map-lines {
+  background-image: linear-gradient(rgba(130, 170, 178, .11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(130, 170, 178, .11) 1px, transparent 1px),
+    radial-gradient(circle at 70% 30%, rgba(255, 77, 109, .19), transparent 21%),
+    radial-gradient(circle at 35% 54%, rgba(255, 122, 69, .16), transparent 24%),
+    radial-gradient(circle at 52% 70%, rgba(242, 193, 78, .14), transparent 20%);
+  background-size: 42px 42px, 42px 42px, auto, auto, auto;
+}
+
+.risk-pulse { animation: pulse 2.8s ease-out infinite; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 96, 62, .38); }
+  50% { box-shadow: 0 0 0 12px rgba(239, 96, 62, 0); }
+}
+
+.atmosphere-layer::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 48%, rgba(2, 8, 10, .42) 100%); }
+.atmosphere-clouds, .atmosphere-rainfall, .atmosphere-flow { position: absolute; inset: 0; }
+.atmosphere-clouds { opacity: .7; filter: blur(22px); background: radial-gradient(ellipse at 18% 4%, rgba(52, 89, 104, .22), transparent 35%), radial-gradient(ellipse at 82% 18%, rgba(39, 66, 81, .2), transparent 38%); }
+.atmosphere-heavy-rain { background: radial-gradient(ellipse at 70% 0%, rgba(48, 104, 124, .24), transparent 45%), linear-gradient(135deg, #07100f 0%, #091614 52%, #0b1a1d 100%); }
+.atmosphere-heavy-rain .atmosphere-clouds, .atmosphere-storm .atmosphere-clouds { animation: clouds 22s ease-in-out infinite alternate; }
+.atmosphere-rain, .atmosphere-heavy-rain { background-color: #08110f; }
+.atmosphere-rainfall i { position: absolute; top: -15%; width: 1px; height: 28px; background: linear-gradient(transparent, rgba(72,199,212,.32)); animation: rainfall var(--rain-duration, 6s) linear infinite; }
+.atmosphere-flow { opacity: 0; border: 1px solid rgba(72,199,212,.08); border-radius: 48%; transform: scale(1.8) rotate(-18deg); }
+.atmosphere-cyclone .atmosphere-flow { opacity: 1; animation: flow 32s linear infinite; }
+.atmosphere-clear { background: radial-gradient(circle at 78% 0%, rgba(241,193,78,.07), transparent 32%), #08110f; }
+.atmosphere-partly-cloudy { background: radial-gradient(ellipse at 30% 0%, rgba(125,226,176,.05), transparent 35%), #08110f; }
+.atmosphere-storm { background: radial-gradient(ellipse at 60% 0%, rgba(72,199,212,.09), transparent 45%), #08110f; }
+.atmosphere-night { filter: brightness(.72); background: #060c0b; }
+.live-dot { animation: live-status 3s ease-in-out infinite; }
+@keyframes live-status { 0%, 100% { opacity: .62; box-shadow: 0 0 0 0 rgba(72, 199, 212, .24); } 50% { opacity: 1; box-shadow: 0 0 0 5px rgba(72, 199, 212, 0); } }
+@keyframes rainfall { to { transform: translateY(120vh) translateX(-20px); } }
+@keyframes clouds { to { transform: translateX(3%) scale(1.04); } }
+@keyframes flow { to { transform: scale(1.8) rotate(342deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .risk-pulse, .live-dot, .atmosphere-clouds, .atmosphere-heavy-rain .atmosphere-clouds,
+  .atmosphere-storm .atmosphere-clouds, .atmosphere-rainfall i, .atmosphere-flow {
+    animation: none !important;
+  }
+}
+
+/* Light intelligence shell: the map intentionally remains the dark visual anchor. */
+.app-shell {
+  background: linear-gradient(135deg, #f4f7f6 0%, #edf4f5 52%, #e8f0f2 100%) !important;
+  transition: background 800ms ease;
+}
+.app-shell > header {
+  background: rgba(255, 255, 255, .78) !important;
+  border-color: #d8e3e1 !important;
+  backdrop-filter: blur(16px);
+}
+.app-shell > header button {
+  border-color: #cedbd9 !important;
+  background: rgba(255, 255, 255, .72) !important;
+  color: #40534f !important;
+}
+.app-shell > header button:last-child {
+  background: #172321 !important;
+  color: #fff !important;
+  border-color: #172321 !important;
+}
+.app-shell > header p:first-of-type { color: #172321 !important; }
+.app-shell main h1 { color: #172321 !important; }
+.app-shell main > div:first-child p { color: #667572 !important; }
+.app-shell main > div:first-child > div:first-child p:last-child {
+  color: #276b78 !important;
+  font-weight: 600;
+}
+.app-shell main section:not(.risk-map) {
+  background: rgba(255, 255, 255, .82) !important;
+  border-color: #d6e2e0 !important;
+  box-shadow: 0 10px 30px rgba(30, 58, 65, .06);
+}
+.app-shell main section:not(.risk-map) p,
+.app-shell main section:not(.risk-map) h2,
+.app-shell main section:not(.risk-map) strong,
+.app-shell main section:not(.risk-map) span {
+  color: #243633 !important;
+}
+.app-shell main section:not(.risk-map) .risk-badge {
+  color: inherit !important;
+}
+.app-shell main section:not(.risk-map) .risk-badge.text-\[\#58c98b\] { color: #198754 !important; }
+.app-shell main section:not(.risk-map) .risk-badge.text-\[\#eec04a\] { color: #a56d00 !important; }
+.app-shell main section:not(.risk-map) .risk-badge.text-\[\#ef603e\] { color: #d24b22 !important; }
+.app-shell main section:not(.risk-map) .risk-badge.text-\[\#f0445f\] { color: #d52d50 !important; }
+.app-shell main section:not(.risk-map) [class*="bg-[#10221d"],
+.app-shell main section:not(.risk-map) [class*="bg-[#10261e"] {
+  background: #f5f9f8 !important;
+  border-color: #d9e5e2 !important;
+}
+.atmosphere-layer {
+  transition: background 800ms ease, filter 800ms ease;
+}
+.atmosphere-heavy-rain {
+  background: radial-gradient(ellipse at 70% 0%, rgba(39, 184, 214, .2), transparent 45%),
+    linear-gradient(135deg, rgba(222, 238, 242, .96), rgba(205, 224, 231, .9)) !important;
+}
+.atmosphere-cloudy { background: linear-gradient(135deg, rgba(223, 232, 237, .96), rgba(239, 244, 245, .9)) !important; }
+.atmosphere-rain { background: linear-gradient(135deg, rgba(221, 237, 242, .95), rgba(240, 246, 247, .9)) !important; }
+.atmosphere-clear { background: radial-gradient(circle at 78% 0%, rgba(245, 193, 78, .2), transparent 32%), #f5f8f4 !important; }
+.atmosphere-storm { background: linear-gradient(135deg, rgba(175, 193, 211, .95), rgba(218, 226, 235, .92)) !important; }
+.atmosphere-night { background: #17232b !important; }
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  @page { margin: 12mm; }
+  body { background: #dcecf1 !important; }
+  .app-shell { background: #eaf3f5 !important; }
+  .atmosphere-layer {
+    position: fixed !important;
+    opacity: .42 !important;
+  }
+  .atmosphere-rainfall i,
+  .atmosphere-clouds,
+  .atmosphere-flow,
+  .risk-pulse,
+  .live-dot { animation: none !important; }
+  .app-shell > header { position: static !important; background: rgba(255,255,255,.9) !important; }
+  .app-shell > header button, .app-shell > header .md\:flex > button { display: none !important; }
+  .app-shell main section { break-inside: avoid; page-break-inside: avoid; }
+  .risk-map { min-height: 520px !important; break-inside: avoid; }
+  .app-shell main { position: relative !important; z-index: 2; }
+}
