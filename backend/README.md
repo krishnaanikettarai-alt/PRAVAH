@@ -97,3 +97,12 @@ currently uses a DynamoDB `Scan`, which is suitable only for the small MVP
 table and must be replaced with access-pattern-driven querying before
 production scale. See [docs/api.md](../docs/api.md) for request fields,
 validation rules, response examples, and status codes.
+
+## Risk engine
+
+The pure risk engine is available through `calculateRisk` in
+`src/services/riskService.ts`. It combines normalized factor scores using the
+MVP weights and returns a score, risk band, factor scores, and a recommended
+action. Its thresholds and recommendations are engineering assumptions, not
+scientifically validated flood thresholds. The engine does not access AWS,
+environment variables, or external services.

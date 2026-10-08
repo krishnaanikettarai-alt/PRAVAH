@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "clean": "node -e \"const fs=require('node:fs'); fs.rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"const fs=require('node:fs'); fs.rmSync('dist',{recursive:true,force:true})\"",
+    "test": "tsx --test src/services/riskService.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.896.0",
@@ -15,6 +16,7 @@
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^24.8.0",
     "esbuild": "^0.25.9",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }
