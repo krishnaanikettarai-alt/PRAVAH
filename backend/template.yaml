@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: PRAVAH serverless API foundation
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        STAGE: !Ref Stage
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    Description: Deployment stage used by the backend configuration
+
+Resources:
+  PravahApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub pravah-api-${Stage}
+      StageName: !Ref Stage
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type'"
+        AllowMethods: "'GET,OPTIONS'"
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/health.handler
+      Events:
+        Health:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PravahApi
+            Path: /health
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/handlers/health.ts
+        External:
+          - "@aws-sdk/*"
+        Minify: false
+        Sourcemap: true
+        Target: es2022

@@ -1,0 +1,12 @@
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "pravah-api"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"

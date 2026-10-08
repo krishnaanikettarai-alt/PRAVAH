@@ -1,0 +1,16 @@
+{
+  "name": "pravah-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "clean": "node -e \"const fs=require('node:fs'); fs.rmSync('dist',{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^24.8.0",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
+  }
+}

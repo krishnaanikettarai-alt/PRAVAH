@@ -16,6 +16,14 @@ The browser application will provide the map, risk summaries, report
 submission flow, and supporting explanations. It will request data through the
 API rather than accessing AWS services directly.
 
+### Serverless backend foundation
+
+The backend is defined with AWS SAM. Amazon API Gateway exposes the initial
+`GET /health` route and invokes a Node.js 22.x AWS Lambda function built from
+strict TypeScript. This foundation keeps stage and AWS Region configuration in
+environment variables while deferring persistent storage and other AWS
+integrations until the corresponding workflows are implemented.
+
 ### API Gateway
 
 Amazon API Gateway will expose the planned HTTP API, apply request routing,

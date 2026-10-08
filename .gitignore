@@ -24,6 +24,13 @@ logs/
 .terraform/
 cdk.out/
 
+# Backend local dependencies and build output
+backend/node_modules/
+backend/.aws-sam/
+backend/dist/
+backend/.env
+backend/.env.*
+
 # Editor and operating-system files
 .vscode/*
 !.vscode/extensions.json
@@ -37,4 +44,4 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
-
+temp/
