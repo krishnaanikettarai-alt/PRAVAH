@@ -9,6 +9,13 @@ const REQUEST_TIMEOUT_MS = 9000;
 
 type FetchImplementation = typeof fetch;
 
+export class OpenMeteoTimeoutError extends Error {
+  public constructor() {
+    super("Open-Meteo request timed out");
+    this.name = "OpenMeteoTimeoutError";
+  }
+}
+
 interface OpenMeteoResponse {
   latitude: number;
   longitude: number;
@@ -181,7 +188,7 @@ export const getPrecipitationForecast = async (
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("Open-Meteo request timed out");
+      throw new OpenMeteoTimeoutError();
     }
     if (error instanceof Error && (
       error.message.startsWith("Open-Meteo") ||

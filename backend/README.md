@@ -112,6 +112,15 @@ stateless Lambda function. It accepts five normalized factor scores from 0 to
 100 and returns the risk result without accessing DynamoDB or other external
 services. Invalid JSON or values return `400 Bad Request`.
 
+The `POST /risk/weather` endpoint combines the next 24 hours of Open-Meteo
+precipitation forecasts with required citizen-report, water-depth, and
+vulnerability scores before calling the existing Risk Engine. It returns
+forecast-source metadata and data-quality information. The prototype rainfall
+and trend thresholds are engineering assumptions, not scientifically
+validated flood thresholds. Missing factors return `422`; invalid input
+returns `400`; provider timeouts return `504`; other provider failures return
+`502`. See [docs/api.md](../docs/api.md) for the complete contract.
+
 ## Open-Meteo weather service
 
 The isolated `getPrecipitationForecast` service retrieves two days of hourly

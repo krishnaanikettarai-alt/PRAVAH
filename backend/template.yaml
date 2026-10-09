@@ -93,7 +93,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
-      Handler: risk.handler
+      Handler: src/handlers/risk.handler
       Events:
         CalculateRisk:
           Type: Api
@@ -106,6 +106,27 @@ Resources:
       BuildProperties:
         EntryPoints:
           - src/handlers/risk.ts
+        Minify: false
+        Sourcemap: true
+        Target: es2022
+
+  WeatherRiskFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/weatherRisk.handler
+      Events:
+        WeatherRisk:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PravahApi
+            Path: /risk/weather
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/handlers/weatherRisk.ts
         Minify: false
         Sourcemap: true
         Target: es2022

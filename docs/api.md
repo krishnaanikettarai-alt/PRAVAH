@@ -165,3 +165,79 @@ Method Not Allowed`; unexpected failures return `500 Internal Server Error`.
 
 The risk weights, thresholds, and recommended actions are MVP engineering
 assumptions and are not scientifically validated flood thresholds.
+
+## `POST /risk/weather`
+
+Calculates a risk result using the next 24 hours of Open-Meteo precipitation
+forecast data plus supplied normalized non-weather factors. This endpoint
+reuses the existing weather service and Risk Engine; it does not access
+DynamoDB.
+
+**Request body:**
+
+```json
+{
+  "latitude": 20.2961,
+  "longitude": 85.8245,
+  "citizenReportsScore": 40,
+  "waterDepthScore": 20,
+  "vulnerabilityScore": 10
+}
+```
+
+The three non-weather scores are required and must be finite numbers from `0`
+to `100`. The service derives `rainfallScore` from total precipitation over
+the next 24 hours: `0 mm` maps to `0`, `25 mm` maps to `50`, and `50 mm` or
+more maps to `100`. It derives `rainfallTrendScore` from the increase in
+average hourly precipitation between the first and second 12-hour periods;
+an increase of `2 mm/hour` maps to `100`, while flat or decreasing rainfall
+maps to `0`.
+
+**Response:** `200 OK`
+
+```json
+{
+  "location": {
+    "latitude": 20.2961,
+    "longitude": 85.8245
+  },
+  "weather": {
+    "source": "OPEN_METEO",
+    "timezone": "Asia/Kolkata",
+    "fetchedAt": "2026-10-09T12:00:00.000Z",
+    "horizonHours": 24,
+    "rainfallTotalMm": 24,
+    "rainfallScore": 48,
+    "rainfallTrendScore": 0
+  },
+  "risk": {
+    "score": 27,
+    "band": "LOW",
+    "factors": {
+      "rainfall": 48,
+      "rainfallTrend": 0,
+      "citizenReports": 40,
+      "waterDepth": 20,
+      "vulnerability": 10
+    },
+    "recommendedAction": "Monitor rainfall and local reports. Avoid unnecessary travel through waterlogged areas."
+  },
+  "dataQuality": {
+    "status": "COMPLETE",
+    "forecastHours": 24,
+    "requiredForecastHours": 24
+  },
+  "metadata": {
+    "forecastSource": "OPEN_METEO",
+    "limitations": [
+      "Weather factors are derived from an Open-Meteo forecast, not direct observations.",
+      "Risk weights, thresholds, and actions are MVP engineering assumptions and are not scientifically validated flood thresholds."
+    ]
+  }
+}
+```
+
+Missing non-weather factors return `422`. Invalid JSON, coordinates, or score
+values return `400`. Open-Meteo timeouts return `504`; other provider failures
+or incomplete forecasts return `502`. Precipitation probability is retained by
+the weather service as informational data and is not included in these scores.

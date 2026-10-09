@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "node -e \"const fs=require('node:fs'); fs.rmSync('dist',{recursive:true,force:true})\"",
-    "test": "tsx --test src/services/riskService.test.ts src/handlers/risk.test.ts src/services/openMeteoService.test.ts"
+    "test": "tsx --test src/services/riskService.test.ts src/handlers/risk.test.ts src/services/openMeteoService.test.ts src/services/weatherRiskService.test.ts src/handlers/weatherRisk.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.896.0",
