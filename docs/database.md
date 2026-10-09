@@ -62,9 +62,15 @@ The current TypeScript model contains:
 - `createdAt: string` (ISO 8601)
 
 The model does not contain user identity fields or image binary data.
-Validation and DynamoDB read/write behavior will be added with the citizen
-report API in a later phase. Geographic or time-based querying may require a
-future key design or GSI after actual query patterns are validated.
+Validation and DynamoDB read/write behavior are implemented by the citizen
+report API. Repository reads use a paginated full-table scan, following
+`LastEvaluatedKey` with `ExclusiveStartKey` until all pages are retrieved. A
+failed page fails the complete read rather than returning partial results,
+while a successful empty table returns an empty list. Scan results are
+eventually consistent and do not provide a point-in-time snapshot across
+pages. This is a small-MVP strategy because the table has no geographic or
+time-based index; a future key design or GSI will be needed for scalable
+location and time queries.
 
 This is an MVP engineering model for storing citizen observations. It is not a
 scientifically validated environmental data model.

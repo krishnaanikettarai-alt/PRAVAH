@@ -92,11 +92,19 @@ The reports Lambda provides:
 - `GET /reports` to return stored reports.
 
 The reports function receives the table name through `REPORTS_TABLE_NAME` and
-has only `dynamodb:PutItem` and `dynamodb:Scan` permissions. `GET /reports`
-currently uses a DynamoDB `Scan`, which is suitable only for the small MVP
-table and must be replaced with access-pattern-driven querying before
-production scale. See [docs/api.md](../docs/api.md) for request fields,
-validation rules, response examples, and status codes.
+has only `dynamodb:PutItem` and `dynamodb:Scan` permissions. Repository
+integration for weather-based risk assessment is planned for a later phase;
+the weather-risk function currently has no DynamoDB access.
+
+Report retrieval follows DynamoDB scan pagination through `LastEvaluatedKey`
+and `ExclusiveStartKey`. A successful empty scan returns an empty list, while
+any page failure is surfaced as a repository error rather than an empty
+result. This is a small-MVP full-table scan because the current table has only
+the `reportId` key and no geographic index. Scans are eventually consistent
+and do not provide a point-in-time snapshot across pages. A geographic and
+time-oriented key or index should be designed before production scale.
+See [docs/api.md](../docs/api.md) for request fields, validation rules,
+response examples, and status codes.
 
 ## Risk engine
 
