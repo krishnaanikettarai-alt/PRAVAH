@@ -115,6 +115,15 @@ Resources:
     Properties:
       CodeUri: .
       Handler: src/handlers/weatherRisk.handler
+      Environment:
+        Variables:
+          REPORTS_TABLE_NAME: !Ref ReportsTable
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Scan
+              Resource: !GetAtt ReportsTable.Arn
       Events:
         WeatherRisk:
           Type: Api

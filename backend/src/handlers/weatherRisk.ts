@@ -2,11 +2,15 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import type { WeatherRiskInput } from "../models/weatherRisk.js";
 import {
   calculateWeatherRisk,
+  WeatherRiskInsufficientDataError,
   WeatherRiskInputError,
   WeatherRiskProviderError,
   WeatherRiskTimeoutError,
-  type ForecastProvider
+  type EvaluationTimeProvider,
+  type ForecastProvider,
+  type ReportProvider
 } from "../services/weatherRiskService.js";
+import { ReportRepositoryError } from "../repositories/reportRepository.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,23 +47,45 @@ const parseInput = (body: string): WeatherRiskInput => {
     throw new RequestError("request body must be a JSON object");
   }
 
-  const missing = ["latitude", "longitude", "citizenReportsScore", "waterDepthScore", "vulnerabilityScore"]
+  if (parsed.useCitizenReports !== undefined && typeof parsed.useCitizenReports !== "boolean") {
+    throw new RequestError("useCitizenReports must be a boolean");
+  }
+  const integrationMode = parsed.useCitizenReports === true;
+  const requiredFields = integrationMode
+    ? ["latitude", "longitude", "vulnerabilityScore"]
+    : ["latitude", "longitude", "citizenReportsScore", "waterDepthScore", "vulnerabilityScore"];
+  const missing = requiredFields
     .filter((field) => !Object.prototype.hasOwnProperty.call(parsed, field));
   if (missing.length > 0) {
     throw new RequestError(`missing required fields: ${missing.join(", ")}`, 422);
   }
 
+  if (integrationMode &&
+    (Object.prototype.hasOwnProperty.call(parsed, "citizenReportsScore") ||
+      Object.prototype.hasOwnProperty.call(parsed, "waterDepthScore"))) {
+    throw new RequestError(
+      "citizenReportsScore and waterDepthScore must not be supplied when useCitizenReports is true"
+    );
+  }
+
   return {
     latitude: parsed.latitude as number,
     longitude: parsed.longitude as number,
-    citizenReportsScore: parsed.citizenReportsScore as number,
-    waterDepthScore: parsed.waterDepthScore as number,
-    vulnerabilityScore: parsed.vulnerabilityScore as number
+    ...(parsed.citizenReportsScore !== undefined
+      ? { citizenReportsScore: parsed.citizenReportsScore as number }
+      : {}),
+    ...(parsed.waterDepthScore !== undefined
+      ? { waterDepthScore: parsed.waterDepthScore as number }
+      : {}),
+    vulnerabilityScore: parsed.vulnerabilityScore as number,
+    ...(integrationMode ? { useCitizenReports: true } : {})
   };
 };
 
 export const createHandler = (
-  forecastProvider?: ForecastProvider
+  forecastProvider?: ForecastProvider,
+  reportProvider?: ReportProvider,
+  evaluationTimeProvider?: EvaluationTimeProvider
 ) => async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (event.httpMethod === "OPTIONS") {
     return response(204, null);
@@ -72,7 +98,15 @@ export const createHandler = (
   }
 
   try {
-    return response(200, await calculateWeatherRisk(parseInput(event.body), forecastProvider));
+    return response(
+      200,
+      await calculateWeatherRisk(
+        parseInput(event.body),
+        forecastProvider,
+        reportProvider,
+        evaluationTimeProvider
+      )
+    );
   } catch (error) {
     if (error instanceof RequestError) {
       return response(error.statusCode, {
@@ -88,6 +122,18 @@ export const createHandler = (
     }
     if (error instanceof WeatherRiskTimeoutError) {
       return response(504, { error: "Weather provider timeout" });
+    }
+    if (error instanceof WeatherRiskInsufficientDataError) {
+      return response(422, {
+        error: "Insufficient data",
+        message: error.reason === "NO_ELIGIBLE_REPORTS"
+          ? "No eligible citizen reports were found"
+          : "Eligible citizen reports do not contain usable water-depth evidence",
+        reason: error.reason
+      });
+    }
+    if (error instanceof ReportRepositoryError) {
+      return response(502, { error: "Report provider unavailable" });
     }
     if (error instanceof WeatherRiskProviderError) {
       return response(502, { error: "Weather provider unavailable" });

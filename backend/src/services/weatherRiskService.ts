@@ -1,8 +1,11 @@
 import type { RiskInput, RiskResult } from "../models/risk.js";
 import type { WeatherForecast, WeatherInput } from "../models/weather.js";
 import type { WeatherRiskInput, WeatherRiskResult } from "../models/weatherRisk.js";
+import { aggregateCitizenReportRisk } from "./citizenReportRiskService.js";
 import { getPrecipitationForecast, OpenMeteoTimeoutError } from "./openMeteoService.js";
+import { listReports, ReportRepositoryError } from "../repositories/reportRepository.js";
 import { calculateRisk } from "./riskService.js";
+import type { Report } from "../models/report.js";
 
 const FORECAST_HOURS = 24;
 const RAINFALL_MAX_MM = 50;
@@ -16,8 +19,16 @@ const localTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2
 export class WeatherRiskTimeoutError extends Error {}
 export class WeatherRiskProviderError extends Error {}
 export class WeatherRiskInputError extends Error {}
+export class WeatherRiskInsufficientDataError extends Error {
+  public constructor(public readonly reason: "NO_ELIGIBLE_REPORTS" | "WATER_DEPTH_UNAVAILABLE") {
+    super("Insufficient citizen report data");
+    this.name = "WeatherRiskInsufficientDataError";
+  }
+}
 
 export type ForecastProvider = (input: WeatherInput) => Promise<WeatherForecast>;
+export type ReportProvider = () => Promise<Report[]>;
+export type EvaluationTimeProvider = () => string;
 
 const validateScore = (name: keyof WeatherRiskInput, value: number): void => {
   if (!Number.isFinite(value) || value < 0 || value > 100) {
@@ -32,9 +43,18 @@ const validateInput = (input: WeatherRiskInput): void => {
   if (!Number.isFinite(input.longitude) || input.longitude < -180 || input.longitude > 180) {
     throw new WeatherRiskInputError("longitude must be a finite number between -180 and 180");
   }
+  validateScore("vulnerabilityScore", input.vulnerabilityScore);
+  if (input.useCitizenReports) {
+    return;
+  }
+  if (input.citizenReportsScore === undefined) {
+    throw new WeatherRiskInputError("citizenReportsScore is required");
+  }
+  if (input.waterDepthScore === undefined) {
+    throw new WeatherRiskInputError("waterDepthScore is required");
+  }
   validateScore("citizenReportsScore", input.citizenReportsScore);
   validateScore("waterDepthScore", input.waterDepthScore);
-  validateScore("vulnerabilityScore", input.vulnerabilityScore);
 };
 
 const calculateRainfallScore = (totalMm: number): number =>
@@ -119,19 +139,33 @@ const validateForecast = (forecast: WeatherForecast): WeatherForecast["hourly"] 
 
 export const calculateWeatherRisk = async (
   input: WeatherRiskInput,
-  forecastProvider: ForecastProvider = getPrecipitationForecast
+  forecastProvider: ForecastProvider = getPrecipitationForecast,
+  reportProvider: ReportProvider = listReports,
+  evaluationTimeProvider: EvaluationTimeProvider = () => new Date().toISOString()
 ): Promise<WeatherRiskResult> => {
   validateInput(input);
+  const evaluationTime = evaluationTimeProvider();
 
   let forecast: WeatherForecast;
+  let reports: Report[] | undefined;
   try {
-    forecast = await forecastProvider({
-      latitude: input.latitude,
-      longitude: input.longitude
-    });
+    if (input.useCitizenReports) {
+      [forecast, reports] = await Promise.all([
+        forecastProvider({ latitude: input.latitude, longitude: input.longitude }),
+        reportProvider()
+      ]);
+    } else {
+      forecast = await forecastProvider({
+        latitude: input.latitude,
+        longitude: input.longitude
+      });
+    }
   } catch (error) {
     if (error instanceof OpenMeteoTimeoutError) {
       throw new WeatherRiskTimeoutError();
+    }
+    if (error instanceof ReportRepositoryError) {
+      throw error;
     }
     throw new WeatherRiskProviderError();
   }
@@ -140,11 +174,41 @@ export const calculateWeatherRisk = async (
   const rainfallTotalMm = hourly.reduce((total, item) => total + item.precipitationMm, 0);
   const rainfallScore = calculateRainfallScore(rainfallTotalMm);
   const rainfallTrendScore = calculateTrendScore(hourly);
+  let citizenReports: WeatherRiskResult["citizenReports"];
+  let citizenReportsScore = input.citizenReportsScore;
+  let waterDepthScore = input.waterDepthScore;
+  if (input.useCitizenReports) {
+    const aggregation = aggregateCitizenReportRisk({
+      latitude: input.latitude,
+      longitude: input.longitude,
+      reports: reports ?? [],
+      evaluationTime
+    });
+    if (aggregation.metadata.status === "NO_DATA") {
+      throw new WeatherRiskInsufficientDataError("NO_ELIGIBLE_REPORTS");
+    }
+    if (aggregation.waterDepthScore === null) {
+      throw new WeatherRiskInsufficientDataError("WATER_DEPTH_UNAVAILABLE");
+    }
+    citizenReportsScore = aggregation.severityScore;
+    waterDepthScore = aggregation.waterDepthScore;
+    citizenReports = {
+      status: "AVAILABLE",
+      severityScore: aggregation.severityScore,
+      waterDepthScore: aggregation.waterDepthScore,
+      eligibleReportCount: aggregation.metadata.eligibleReportCount,
+      excludedReportCount: aggregation.metadata.excludedReportCount,
+      eligibleWaterDepthReportCount: aggregation.metadata.eligibleWaterDepthReportCount,
+      radiusKm: aggregation.metadata.radiusKm,
+      observationWindowHours: aggregation.metadata.observationWindowHours,
+      evaluationTime
+    };
+  }
   const riskInput: RiskInput = {
     rainfallScore,
     rainfallTrendScore,
-    citizenReportsScore: input.citizenReportsScore,
-    waterDepthScore: input.waterDepthScore,
+    citizenReportsScore: citizenReportsScore!,
+    waterDepthScore: waterDepthScore!,
     vulnerabilityScore: input.vulnerabilityScore
   };
   const risk: RiskResult = calculateRisk(riskInput);
@@ -167,8 +231,12 @@ export const calculateWeatherRisk = async (
     dataQuality: {
       status: "COMPLETE",
       forecastHours: FORECAST_HOURS,
-      requiredForecastHours: FORECAST_HOURS
+      requiredForecastHours: FORECAST_HOURS,
+      ...(input.useCitizenReports
+        ? { citizenReports: "AVAILABLE" as const, waterDepth: "AVAILABLE" as const }
+        : {})
     },
+    ...(citizenReports ? { citizenReports } : {}),
     metadata: {
       forecastSource: forecast.source,
       limitations: LIMITATIONS

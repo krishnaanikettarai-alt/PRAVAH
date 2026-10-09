@@ -92,9 +92,9 @@ The reports Lambda provides:
 - `GET /reports` to return stored reports.
 
 The reports function receives the table name through `REPORTS_TABLE_NAME` and
-has only `dynamodb:PutItem` and `dynamodb:Scan` permissions. Repository
-integration for weather-based risk assessment is planned for a later phase;
-the weather-risk function currently has no DynamoDB access.
+has only `dynamodb:PutItem` and `dynamodb:Scan` permissions. The opt-in
+weather-risk integration receives the same table name and only
+`dynamodb:Scan` access; legacy weather-risk requests do not retrieve reports.
 
 Report retrieval follows DynamoDB scan pagination through `LastEvaluatedKey`
 and `ExclusiveStartKey`. A successful empty scan returns an empty list, while
@@ -120,12 +120,16 @@ stateless Lambda function. It accepts five normalized factor scores from 0 to
 100 and returns the risk result without accessing DynamoDB or other external
 services. Invalid JSON or values return `400 Bad Request`.
 
-The `POST /risk/weather` endpoint combines the next 24 hours of Open-Meteo
-precipitation forecasts with required citizen-report, water-depth, and
-vulnerability scores before calling the existing Risk Engine. It returns
-forecast-source metadata and data-quality information. The prototype rainfall
-and trend thresholds are engineering assumptions, not scientifically
-validated flood thresholds. Missing factors return `422`; invalid input
+The `POST /risk/weather` endpoint preserves its legacy request contract by
+using caller-provided citizen-report, water-depth, and vulnerability scores.
+With `useCitizenReports: true`, the service instead retrieves reports through
+the paginated repository and derives severity and water-depth scores using the
+pure citizen-report aggregation service. This opt-in mode requires eligible
+reports with usable water-depth evidence; either missing evidence returns
+`422`, while report repository failures return a generic `502`. The weather
+and report reads run concurrently using one evaluation timestamp. The
+prototype rainfall, trend, and report scoring thresholds are engineering
+assumptions, not scientifically validated flood thresholds. Invalid input
 returns `400`; provider timeouts return `504`; other provider failures return
 `502`. See [docs/api.md](../docs/api.md) for the complete contract.
 

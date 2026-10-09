@@ -70,7 +70,9 @@ while a successful empty table returns an empty list. Scan results are
 eventually consistent and do not provide a point-in-time snapshot across
 pages. This is a small-MVP strategy because the table has no geographic or
 time-based index; a future key design or GSI will be needed for scalable
-location and time queries.
+location and time queries. The opt-in weather-risk integration uses this
+repository read with only `dynamodb:Scan` permission scoped to this table;
+legacy weather-risk requests do not access DynamoDB.
 
 This is an MVP engineering model for storing citizen observations. It is not a
 scientifically validated environmental data model.

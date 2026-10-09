@@ -169,9 +169,9 @@ assumptions and are not scientifically validated flood thresholds.
 ## `POST /risk/weather`
 
 Calculates a risk result using the next 24 hours of Open-Meteo precipitation
-forecast data plus supplied normalized non-weather factors. This endpoint
-reuses the existing weather service and Risk Engine; it does not access
-DynamoDB.
+forecast data. Legacy requests also supply normalized non-weather factors.
+Requests with `useCitizenReports: true` derive citizen-report severity and
+water-depth factors from recent nearby DynamoDB reports.
 
 **Request body:**
 
@@ -185,8 +185,21 @@ DynamoDB.
 }
 ```
 
-The three non-weather scores are required and must be finite numbers from `0`
-to `100`. The service derives `rainfallScore` from total precipitation over
+Legacy requests require all three non-weather scores and they must be finite
+numbers from `0` to `100`. Integration requests use this shape:
+
+```json
+{
+  "latitude": 20.2961,
+  "longitude": 85.8245,
+  "vulnerabilityScore": 10,
+  "useCitizenReports": true
+}
+```
+
+Integration mode rejects caller-provided `citizenReportsScore` or
+`waterDepthScore`; both are derived from stored reports. The service derives
+`rainfallScore` from total precipitation over
 the next 24 hours: `0 mm` maps to `0`, `25 mm` maps to `50`, and `50 mm` or
 more maps to `100`. It derives `rainfallTrendScore` from the increase in
 average hourly precipitation between the first and second 12-hour periods;
@@ -237,7 +250,11 @@ maps to `0`.
 }
 ```
 
-Missing non-weather factors return `422`. Invalid JSON, coordinates, or score
-values return `400`. Open-Meteo timeouts return `504`; other provider failures
-or incomplete forecasts return `502`. Precipitation probability is retained by
-the weather service as informational data and is not included in these scores.
+In integration mode, no eligible reports return `422` with
+`reason: "NO_ELIGIBLE_REPORTS"`, and eligible reports without usable water
+depth return `422` with `reason: "WATER_DEPTH_UNAVAILABLE"`. Repository
+failures return generic `502` responses and are never treated as empty
+reports. Invalid JSON, coordinates, or score values return `400`.
+Open-Meteo timeouts return `504`; other provider failures or incomplete
+forecasts return `502`. Precipitation probability is retained by the weather
+service as informational data and is not included in these scores.
