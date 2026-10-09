@@ -1,8 +1,8 @@
 # PRAVAH backend
 
 The backend is the AWS serverless foundation for PRAVAH. It currently provides
-a health endpoint and the DynamoDB infrastructure and data model for future
-citizen reports. The citizen report API is not implemented yet. It remains
+health, citizen reports, and stateless risk calculation endpoints, along with
+the DynamoDB infrastructure and data model for reports. It remains
 intentionally free of external integrations, authentication, and notification
 resources.
 
@@ -106,3 +106,8 @@ MVP weights and returns a score, risk band, factor scores, and a recommended
 action. Its thresholds and recommendations are engineering assumptions, not
 scientifically validated flood thresholds. The engine does not access AWS,
 environment variables, or external services.
+
+The `POST /risk/calculate` endpoint exposes this calculation through a
+stateless Lambda function. It accepts five normalized factor scores from 0 to
+100 and returns the risk result without accessing DynamoDB or other external
+services. Invalid JSON or values return `400 Bad Request`.

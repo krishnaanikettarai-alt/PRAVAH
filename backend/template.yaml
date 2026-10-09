@@ -89,6 +89,27 @@ Resources:
         Sourcemap: true
         Target: es2022
 
+  RiskFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: risk.handler
+      Events:
+        CalculateRisk:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PravahApi
+            Path: /risk/calculate
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/handlers/risk.ts
+        Minify: false
+        Sourcemap: true
+        Target: es2022
+
   ReportsTable:
     Type: AWS::DynamoDB::Table
     Properties:

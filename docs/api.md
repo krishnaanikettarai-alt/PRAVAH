@@ -1,7 +1,7 @@
 # MVP API
 
-These endpoints describe the current MVP contract. The health and citizen
-report endpoints are implemented; risk remains planned.
+These endpoints describe the current MVP contract. The health, citizen report,
+and risk calculation endpoints are implemented.
 
 ## Conventions
 
@@ -120,9 +120,48 @@ queries and an appropriate key/index design before production scale.
 - `500 Internal Server Error` — unexpected service or DynamoDB failure.
 
 Reports are stored in the on-demand DynamoDB `ReportsTable`. Geographic
-querying, pagination, image upload, S3 storage, and risk analysis are not part
-of this phase.
+querying, pagination, image upload, and S3 storage are not part of this phase.
 
-## `GET /risk`
+## `POST /risk/calculate`
 
-Risk intelligence remains planned and is not implemented.
+Calculates an indicative risk result from normalized MVP factor scores. This
+endpoint is stateless and does not access DynamoDB or external services.
+
+**Request body:**
+
+```json
+{
+  "rainfallScore": 80,
+  "rainfallTrendScore": 60,
+  "citizenReportsScore": 40,
+  "waterDepthScore": 20,
+  "vulnerabilityScore": 10
+}
+```
+
+All five fields are required finite numbers in the inclusive range `0` to
+`100`. The values are currently normalized MVP inputs.
+
+**Response:** `200 OK`
+
+```json
+{
+  "score": 47,
+  "band": "MODERATE",
+  "factors": {
+    "rainfall": 80,
+    "rainfallTrend": 60,
+    "citizenReports": 40,
+    "waterDepth": 20,
+    "vulnerability": 10
+  },
+  "recommendedAction": "Monitor rainfall and local reports. Avoid unnecessary travel through waterlogged areas."
+}
+```
+
+Invalid JSON, missing fields, non-finite values, and values outside the
+allowed range return `400 Bad Request`. Unsupported methods return `405
+Method Not Allowed`; unexpected failures return `500 Internal Server Error`.
+
+The risk weights, thresholds, and recommended actions are MVP engineering
+assumptions and are not scientifically validated flood thresholds.
