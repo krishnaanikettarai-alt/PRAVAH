@@ -111,3 +111,13 @@ The `POST /risk/calculate` endpoint exposes this calculation through a
 stateless Lambda function. It accepts five normalized factor scores from 0 to
 100 and returns the risk result without accessing DynamoDB or other external
 services. Invalid JSON or values return `400 Bad Request`.
+
+## Open-Meteo weather service
+
+The isolated `getPrecipitationForecast` service retrieves two days of hourly
+precipitation and precipitation-probability forecasts from Open-Meteo. It
+returns location, timezone, fetch time, source, and normalized hourly
+precipitation records. This data is a forecast, not a direct observation, and
+forecasts are not guaranteed to be accurate. Any future UI displaying this
+data must attribute Open-Meteo in accordance with its
+[terms](https://open-meteo.com/en/terms).
