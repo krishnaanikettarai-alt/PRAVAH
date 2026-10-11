@@ -54,6 +54,9 @@ Validation rules:
 - `waterDepthCm`, when supplied, must be a finite number greater than or
   equal to zero.
 - `description` and `imageKey`, when supplied, must be strings.
+- `description` is limited to 2,000 characters.
+- `imageKey` is limited to 512 characters.
+- JSON request bodies are limited to 32 KiB.
 
 **Response:** `201 Created`
 

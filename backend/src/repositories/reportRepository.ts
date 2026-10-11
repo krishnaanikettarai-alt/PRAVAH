@@ -72,7 +72,10 @@ export const createReportRepository = (
         exclusiveStartKey = result.LastEvaluatedKey;
       } while (exclusiveStartKey);
     } catch (error) {
-      console.error("DynamoDB Scan failed:", error);
+      console.error(JSON.stringify({
+        event: "dynamodb_report_scan_failed",
+        errorName: error instanceof Error ? error.name : "UnknownError"
+      }));
       throw new ReportRepositoryError();
     }
 

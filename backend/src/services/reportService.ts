@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { Report, ReportSeverity } from "../models/report.js";
 import * as reportRepository from "../repositories/reportRepository.js";
 
+export const MAX_DESCRIPTION_LENGTH = 2_000;
+export const MAX_IMAGE_KEY_LENGTH = 512;
+
 export interface CreateReportInput {
   latitude: unknown;
   longitude: unknown;
@@ -67,9 +70,15 @@ const validateCreateInput = (input: CreateReportInput): Omit<Report, "reportId" 
   if (input.description !== undefined && typeof input.description !== "string") {
     throw new ReportValidationError("description must be a string");
   }
+  if (typeof input.description === "string" && input.description.length > MAX_DESCRIPTION_LENGTH) {
+    throw new ReportValidationError(`description must be at most ${MAX_DESCRIPTION_LENGTH} characters`);
+  }
 
   if (input.imageKey !== undefined && typeof input.imageKey !== "string") {
     throw new ReportValidationError("imageKey must be a string");
+  }
+  if (typeof input.imageKey === "string" && input.imageKey.length > MAX_IMAGE_KEY_LENGTH) {
+    throw new ReportValidationError(`imageKey must be at most ${MAX_IMAGE_KEY_LENGTH} characters`);
   }
 
   const description = typeof input.description === "string" ? input.description : undefined;

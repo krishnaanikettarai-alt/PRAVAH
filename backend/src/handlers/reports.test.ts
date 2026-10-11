@@ -4,10 +4,10 @@ import type { APIGatewayProxyEvent } from "aws-lambda";
 import type { Report } from "../models/report.js";
 import { createHandler } from "./reports.js";
 
-const event = (method: string, body: string | null): APIGatewayProxyEvent => ({
+const event = (method: string, body: string | null, origin?: string): APIGatewayProxyEvent => ({
   httpMethod: method,
   body,
-  headers: {},
+  headers: origin ? { Origin: origin } : {},
   multiValueHeaders: {},
   isBase64Encoded: false,
   path: "/reports",
@@ -79,6 +79,30 @@ test("returns CORS preflight and method errors", async () => {
   assert.equal(options.statusCode, 204);
   assert.equal(options.headers?.["Access-Control-Allow-Methods"], "GET,POST,OPTIONS");
   assert.equal(unsupported.statusCode, 405);
+});
+
+test("allows only the configured origin and keeps CORS on preflight", async () => {
+  const handler = createHandler(async () => report, async () => []);
+  const allowed = await handler(event("OPTIONS", null, "http://localhost:5173"));
+  const denied = await handler(event("GET", null, "https://untrusted.example"));
+
+  assert.equal(allowed.headers?.["Access-Control-Allow-Origin"], "http://localhost:5173");
+  assert.equal(allowed.headers?.Vary, "Origin");
+  assert.equal(denied.headers?.["Access-Control-Allow-Origin"], undefined);
+  assert.equal(denied.headers?.Vary, "Origin");
+});
+
+test("rejects oversized request bodies before invoking the service", async () => {
+  let called = false;
+  const handler = createHandler(async () => {
+    called = true;
+    return report;
+  });
+  const result = await handler(event("POST", JSON.stringify({ description: "x".repeat(33_000) })));
+
+  assert.equal(result.statusCode, 400);
+  assert.match(JSON.parse(result.body).message, /32 KB/);
+  assert.equal(called, false);
 });
 
 test("maps service failures without exposing internal details", async () => {

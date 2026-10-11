@@ -114,5 +114,5 @@ test("supports CORS preflight", async () => {
   const result = await handler(event("OPTIONS", null));
 
   assert.equal(result.statusCode, 204);
-  assert.equal(result.headers?.["Access-Control-Allow-Methods"], "GET,POST,OPTIONS");
+  assert.equal(result.headers?.["Access-Control-Allow-Methods"], "POST,OPTIONS");
 });

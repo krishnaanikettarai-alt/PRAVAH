@@ -12,20 +12,16 @@ import {
   type ReportProvider
 } from "../services/weatherRiskService.js";
 import { ReportRepositoryError } from "../repositories/reportRepository.js";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-};
+import { corsHeaders, isBodyWithinLimit } from "../security.js";
 
 const response = (
   statusCode: number,
+  event: Pick<APIGatewayProxyEvent, "headers">,
   body: unknown
 ): APIGatewayProxyResult => ({
   statusCode,
   headers: {
-    ...corsHeaders,
+    ...corsHeaders(event, "POST,OPTIONS"),
     "Content-Type": "application/json"
   },
   body: JSON.stringify(body)
@@ -140,25 +136,32 @@ export const createHandler = (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
   if (event.httpMethod === "OPTIONS") {
-    return response(204, null);
+    return response(204, event, null);
   }
 
   if (event.httpMethod !== "POST") {
-    return response(405, {
+    return response(405, event, {
       error: "Method not allowed"
     });
   }
 
   if (!event.body) {
-    return response(400, {
+    return response(400, event, {
       error: "Invalid request",
       message: "request body is required"
+    });
+  }
+  if (!isBodyWithinLimit(event.body)) {
+    return response(400, event, {
+      error: "Invalid request",
+      message: "request body exceeds the 32 KB limit"
     });
   }
 
   try {
     return response(
       200,
+      event,
       await calculateWeatherRisk(
         parseInput(event.body),
         forecastProvider,
@@ -168,27 +171,27 @@ export const createHandler = (
     );
   } catch (error) {
     if (error instanceof RequestError) {
-      return response(error.statusCode, {
+      return response(error.statusCode, event, {
         error: "Invalid request",
         message: error.message
       });
     }
 
     if (error instanceof WeatherRiskInputError) {
-      return response(400, {
+      return response(400, event, {
         error: "Invalid request",
         message: error.message
       });
     }
 
     if (error instanceof WeatherRiskTimeoutError) {
-      return response(504, {
+      return response(504, event, {
         error: "Weather provider timeout"
       });
     }
 
     if (error instanceof WeatherRiskInsufficientDataError) {
-      return response(422, {
+      return response(422, event, {
         error: "Insufficient data",
         message:
           error.reason === "NO_ELIGIBLE_REPORTS"
@@ -199,23 +202,23 @@ export const createHandler = (
     }
 
     if (error instanceof ReportRepositoryError) {
-      return response(502, {
+      return response(502, event, {
         error: "Report provider unavailable"
       });
     }
 
     if (error instanceof WeatherRiskProviderError) {
-      return response(502, {
+      return response(502, event, {
         error: "Weather provider unavailable"
       });
     }
 
-    console.error(
-      "Weather risk calculation failed",
-      error
-    );
+    console.error(JSON.stringify({
+      event: "weather_risk_calculation_failed",
+      errorName: error instanceof Error ? error.name : "UnknownError"
+    }));
 
-    return response(500, {
+    return response(500, event, {
       error: "Internal server error"
     });
   }

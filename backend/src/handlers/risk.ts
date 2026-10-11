@@ -1,17 +1,16 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import type { RiskInput } from "../models/risk.js";
 import { calculateRisk } from "../services/riskService.js";
+import { corsHeaders, isBodyWithinLimit } from "../security.js";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-};
-
-const response = (statusCode: number, body: unknown): APIGatewayProxyResult => ({
+const response = (
+  event: Pick<APIGatewayProxyEvent, "headers">,
+  statusCode: number,
+  body: unknown
+): APIGatewayProxyResult => ({
   statusCode,
   headers: {
-    ...corsHeaders,
+    ...corsHeaders(event, "POST,OPTIONS"),
     "Content-Type": "application/json"
   },
   body: JSON.stringify(body)
@@ -68,31 +67,40 @@ const parseRiskInput = (body: string): RiskInput => {
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (event.httpMethod === "OPTIONS") {
-    return response(204, null);
+    return response(event, 204, null);
   }
 
   if (event.httpMethod !== "POST") {
-    return response(405, { error: "Method not allowed" });
+    return response(event, 405, { error: "Method not allowed" });
   }
 
   if (!event.body) {
-    return response(400, {
+    return response(event, 400, {
       error: "Invalid request",
       message: "request body is required"
     });
   }
+  if (!isBodyWithinLimit(event.body)) {
+    return response(event, 400, {
+      error: "Invalid request",
+      message: "request body exceeds the 32 KB limit"
+    });
+  }
 
   try {
-    return response(200, calculateRisk(parseRiskInput(event.body)));
+    return response(event, 200, calculateRisk(parseRiskInput(event.body)));
   } catch (error) {
     if (error instanceof RiskRequestError) {
-      return response(400, {
+      return response(event, 400, {
         error: "Invalid request",
         message: error.message
       });
     }
 
-    console.error("Risk calculation failed", error);
-    return response(500, { error: "Internal server error" });
+    console.error(JSON.stringify({
+      event: "risk_calculation_failed",
+      errorName: error instanceof Error ? error.name : "UnknownError"
+    }));
+    return response(event, 500, { error: "Internal server error" });
   }
 };

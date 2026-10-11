@@ -10,12 +10,45 @@ Globals:
     Environment:
       Variables:
         STAGE: !Ref Stage
+        CORS_ALLOWED_ORIGIN: !Ref AllowedOrigin
 
 Parameters:
   Stage:
     Type: String
     Default: dev
     Description: Deployment stage used by the backend configuration
+  AllowedOrigin:
+    Type: String
+    Default: http://localhost:5173
+    Description: Exact browser origin allowed to call the API
+  ApiThrottleRateLimit:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    Description: Steady-state API Gateway requests per second across the stage
+  ApiThrottleBurstLimit:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    Description: Maximum short burst of API Gateway requests across the stage
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365]
+    Description: CloudWatch log retention period for Lambda logs
+  EnableMonitoringAlarms:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Declare prototype CloudWatch alarms without notification actions
+  AlarmPeriodSeconds:
+    Type: Number
+    Default: 300
+    MinValue: 60
+    Description: Evaluation period for optional prototype CloudWatch alarms
+
+Conditions:
+  CreateMonitoringAlarms: !Equals [!Ref EnableMonitoringAlarms, "true"]
 
 Resources:
   PravahApi:
@@ -24,9 +57,14 @@ Resources:
       Name: !Sub pravah-api-${Stage}
       StageName: !Ref Stage
       Cors:
-        AllowOrigin: "'*'"
+        AllowOrigin: !Sub "'${AllowedOrigin}'"
         AllowHeaders: "'Content-Type'"
         AllowMethods: "'GET,POST,OPTIONS'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingRateLimit: !Ref ApiThrottleRateLimit
+          ThrottlingBurstLimit: !Ref ApiThrottleBurstLimit
 
   HealthFunction:
     Type: AWS::Serverless::Function
@@ -114,6 +152,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
+      Timeout: 15
       Handler: src/handlers/weatherRisk.handler
       Environment:
         Variables:
@@ -142,12 +181,249 @@ Resources:
 
   ReportsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub pravah-reports-${Stage}
       BillingMode: PAY_PER_REQUEST
+      DeletionProtectionEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: reportId
           AttributeType: S
       KeySchema:
         - AttributeName: reportId
           KeyType: HASH
+
+  HealthFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${HealthFunction}
+      RetentionInDays: !Ref LogRetentionDays
+
+  ReportsFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ReportsFunction}
+      RetentionInDays: !Ref LogRetentionDays
+
+  RiskFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${RiskFunction}
+      RetentionInDays: !Ref LogRetentionDays
+
+  WeatherRiskFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${WeatherRiskFunction}
+      RetentionInDays: !Ref LogRetentionDays
+
+  ReportsFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Reports Lambda errors detected
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReportsFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  HealthFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Health Lambda errors detected
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref HealthFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  HealthFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Health Lambda throttles detected
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref HealthFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  RiskFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Risk Lambda errors detected
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RiskFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  RiskFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Risk Lambda throttles detected
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RiskFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ReportsFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Reports Lambda throttles detected
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReportsFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  WeatherRiskFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Weather risk Lambda errors detected
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WeatherRiskFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  WeatherRiskFunctionThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Weather risk Lambda throttles detected
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WeatherRiskFunction
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ApiGateway5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: API Gateway 5xx responses detected
+      Namespace: AWS/ApiGateway
+      MetricName: 5XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub pravah-api-${Stage}
+        - Name: Stage
+          Value: !Ref Stage
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ReportsTableThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Reports DynamoDB throttling detected
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - Name: TableName
+          Value: !Ref ReportsTable
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ReportsTableSystemErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: CreateMonitoringAlarms
+    Properties:
+      AlarmDescription: Reports DynamoDB system errors detected
+      Namespace: AWS/DynamoDB
+      MetricName: SystemErrors
+      Dimensions:
+        - Name: TableName
+          Value: !Ref ReportsTable
+      Statistic: Sum
+      Period: !Ref AlarmPeriodSeconds
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL for the selected stage
+    Value: !Sub https://${PravahApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+  ReportsTableName:
+    Description: DynamoDB table name for citizen reports
+    Value: !Ref ReportsTable
+  MonitoringAlarmsEnabled:
+    Description: Whether optional CloudWatch alarms are declared for this stack
+    Value: !Ref EnableMonitoringAlarms

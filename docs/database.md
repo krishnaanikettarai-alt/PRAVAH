@@ -45,8 +45,13 @@ environmental/flood/waterlogging reports. Its physical name is
 | `reportId` | String | Partition key |
 
 The table uses `PAY_PER_REQUEST` billing to avoid provisioned-capacity charges
-while the MVP usage pattern is unknown. No GSI is currently required because
-the report API and its access patterns have not been implemented yet.
+while the MVP usage pattern is unknown. The current API has no GSI because it
+still uses a full-table scan; a production access-pattern redesign is deferred.
+The SAM resource enables point-in-time recovery and deletion protection and
+declares `DeletionPolicy: Retain` plus `UpdateReplacePolicy: Retain`. These
+safeguards protect stored reports from accidental stack deletion or
+replacement, but require an explicit cleanup workflow for development tables.
+They have not been applied to a live AWS table in this phase.
 
 The current TypeScript model contains:
 
