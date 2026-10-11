@@ -3,10 +3,24 @@ import { DynamoDBDocumentClient, PutCommand, ScanCommand } from "@aws-sdk/lib-dy
 import type { Report } from "../models/report.js";
 import { config } from "../config.js";
 
+
 const client = new DynamoDBClient({
   region: config.region,
-  ...(config.dynamodbEndpoint ? { endpoint: config.dynamodbEndpoint } : {})
+  ...(config.dynamodbEndpoint
+    ? {
+        endpoint: config.dynamodbEndpoint,
+        ...(config.isSamLocal
+          ? {
+              credentials: {
+                accessKeyId: "local",
+                secretAccessKey: "local"
+              }
+            }
+          : {})
+      }
+    : {})
 });
+
 const documentClient = DynamoDBDocumentClient.from(client);
 
 type ScanKey = NonNullable<ScanCommand["input"]["ExclusiveStartKey"]>;
@@ -57,7 +71,8 @@ export const createReportRepository = (
         reports.push(...(result.Items ?? []));
         exclusiveStartKey = result.LastEvaluatedKey;
       } while (exclusiveStartKey);
-    } catch {
+    } catch (error) {
+      console.error("DynamoDB Scan failed:", error);
       throw new ReportRepositoryError();
     }
 
