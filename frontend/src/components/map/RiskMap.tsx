@@ -1,7 +1,14 @@
-import { MapPin } from 'lucide-react';
-import type { LocationRisk } from '../../types/domain';
+import { useEffect } from 'react';
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import type { LatLngExpression } from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import type { RiskLevel } from '../../types/domain';
 
-const riskColors = {
+const DEFAULT_CENTER: LatLngExpression = [20.2961, 85.8245];
+const DEFAULT_ZOOM = 12;
+
+const riskColors: Record<RiskLevel, string> = {
   LOW: '#42D487',
   MODERATE: '#F2C14E',
   HIGH: '#FF7A45',
@@ -9,34 +16,90 @@ const riskColors = {
 };
 
 interface RiskMapProps {
-  locations: LocationRisk[];
+  latitude: number;
+  longitude: number;
+  locationLabel: string;
+  riskScore?: number;
+  riskBand?: RiskLevel;
 }
 
-export function RiskMap({ locations }: RiskMapProps) {
+function MapViewSynchronizer({ latitude, longitude }: Pick<RiskMapProps, 'latitude' | 'longitude'>) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.flyTo([latitude, longitude], map.getZoom(), { duration: 0.8 });
+  }, [latitude, longitude, map]);
+
+  return null;
+}
+
+function createRiskIcon(color: string) {
+  return L.divIcon({
+    className: 'risk-map-marker',
+    html: `<span style="background:${color};box-shadow:0 0 0 5px ${color}33,0 0 24px ${color}aa"></span>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+}
+
+export function RiskMap({
+  latitude,
+  longitude,
+  locationLabel,
+  riskScore,
+  riskBand,
+}: RiskMapProps) {
+  const center: LatLngExpression = [latitude, longitude];
+  const bandColor = riskBand ? riskColors[riskBand] : '#48C7D4';
+  const icon = createRiskIcon(bandColor);
+
   return (
-    <section className="risk-map relative min-h-[480px] overflow-hidden rounded-xl border border-[#21403A] bg-[#0B1A1D] shadow-2xl shadow-black/30 lg:min-h-[620px]" aria-label="Placeholder risk map">
-      <div className="map-lines absolute inset-0 opacity-80" />
-      <div className="absolute inset-0 opacity-30" style={{ background: 'linear-gradient(125deg, transparent 20%, #42665a 20.2%, transparent 20.6%, transparent 60%, #42665a 60.2%, transparent 60.5%), linear-gradient(30deg, transparent 45%, #42665a 45.2%, transparent 45.6%)' }} />
-      <div className="absolute left-5 top-5 z-10 flex items-center gap-2 rounded-full border border-[#36584e] bg-[#10261f]/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.16em] text-[#91b0a5]">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#58c98b]" /> Demonstration map · not live
+    <section
+      className="risk-map relative min-h-[480px] overflow-hidden rounded-xl border border-[#21403A] bg-[#0B1A1D] shadow-2xl shadow-black/30 lg:min-h-[620px]"
+      aria-label={`Risk assessment map for ${locationLabel}`}
+    >
+      <MapContainer
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        scrollWheelZoom
+        className="risk-map-leaflet absolute inset-0"
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <MapViewSynchronizer latitude={latitude} longitude={longitude} />
+        <Circle
+          center={center}
+          radius={2000}
+          pathOptions={{ color: bandColor, fillColor: bandColor, fillOpacity: 0.12, weight: 1 }}
+        />
+        <Marker position={center} icon={icon}>
+          <Popup>
+            <strong>{locationLabel}</strong>
+            <br />
+            {riskScore !== undefined && riskBand ? `Risk: ${riskScore}/100 · ${riskBand}` : 'Awaiting live risk assessment'}
+          </Popup>
+        </Marker>
+      </MapContainer>
+
+      <div className="pointer-events-none absolute left-5 top-5 z-[400] flex items-center gap-2 rounded-full border border-[#36584e] bg-[#10261f]/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.16em] text-[#91b0a5]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#58c98b]" /> Selected location
       </div>
-      <div className="absolute right-5 top-5 z-10 rounded-lg border border-[#29453d] bg-[#10261f]/85 px-3 py-2 text-right text-[10px] text-[#719188]">
-        <p className="font-semibold uppercase tracking-[.15em] text-[#a9c5ba]">Cuttack sector</p>
-        <p>20.46° N · 85.88° E</p>
+      <div className="pointer-events-none absolute right-5 top-5 z-[400] rounded-lg border border-[#29453d] bg-[#10261f]/90 px-3 py-2 text-right text-[10px] text-[#719188]">
+        <p className="font-semibold uppercase tracking-[.15em] text-[#a9c5ba]">{locationLabel}</p>
+        <p>{latitude.toFixed(4)}° N · {longitude.toFixed(4)}° E</p>
       </div>
-      {locations.map((location) => (
-        <div key={location.id} className="absolute z-10" style={{ left: `${location.x}%`, top: `${location.y}%` }}>
-          <div className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full opacity-45 blur-[1px]" style={{ width: `${location.radius * 7}px`, height: `${location.radius * 7}px`, background: riskColors[location.level], boxShadow: `0 0 28px ${riskColors[location.level]}` }} />
-          <div className={`risk-pulse relative flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-[#08110f]`} style={{ backgroundColor: riskColors[location.level] }}>
-            <MapPin size={13} strokeWidth={3} className="text-[#08110f]" />
-          </div>
-          <span className="absolute left-4 top-[-9px] whitespace-nowrap rounded bg-[#08110f]/80 px-2 py-1 text-[10px] font-semibold text-[#c3d8d0]">{location.label}</span>
-        </div>
-      ))}
-      <div className="absolute bottom-5 left-5 z-10 flex flex-wrap gap-3 rounded-xl border border-[#29453d] bg-[#0d211b]/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ab6ab]">
-        {Object.entries(riskColors).map(([level, color]) => <span key={level} className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full" style={{ background: color }} />{level}</span>)}
+      <div className="pointer-events-none absolute bottom-5 left-5 z-[400] flex flex-wrap gap-3 rounded-xl border border-[#29453d] bg-[#0d211b]/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#9ab6ab]">
+        {Object.entries(riskColors).map(([level, color]) => (
+          <span key={level} className="flex items-center gap-1.5">
+            <i className="h-2 w-2 rounded-full" style={{ background: color }} />
+            {level}
+          </span>
+        ))}
       </div>
-      <span className="absolute bottom-5 right-5 z-10 text-[10px] text-[#5e7c72]">Map layers prepared for future provider integration</span>
+      <span className="pointer-events-none absolute bottom-10 right-3 z-[400] text-[10px] text-[#d0e1da]">2 km aggregation radius · OpenStreetMap base layer</span>
     </section>
   );
 }
