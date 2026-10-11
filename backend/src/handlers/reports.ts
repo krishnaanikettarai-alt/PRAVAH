@@ -5,6 +5,7 @@ import {
   ReportValidationError,
   type CreateReportInput
 } from "../services/reportService.js";
+import type { Report } from "../models/report.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,13 @@ const response = (statusCode: number, body: unknown): APIGatewayProxyResult => (
   body: JSON.stringify(body)
 });
 
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+type CreateReport = (input: CreateReportInput) => Promise<Report>;
+type ListReports = () => Promise<Report[]>;
+
+export const createHandler = (
+  create: CreateReport = createReport,
+  list: ListReports = listReports
+) => async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (event.httpMethod === "OPTIONS") {
     return response(204, null);
   }
@@ -37,7 +44,14 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
       let input: CreateReportInput;
       try {
-        input = JSON.parse(event.body) as CreateReportInput;
+        const parsed: unknown = JSON.parse(event.body);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          return response(400, {
+            error: "Invalid request",
+            message: "request body must be a JSON object"
+          });
+        }
+        input = parsed as CreateReportInput;
       } catch {
         return response(400, {
           error: "Invalid request",
@@ -45,11 +59,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         });
       }
 
-      return response(201, await createReport(input));
+      return response(201, await create(input));
     }
 
     if (event.httpMethod === "GET") {
-      return response(200, { reports: await listReports() });
+      return response(200, { reports: await list() });
     }
 
     return response(405, { error: "Method not allowed" });
@@ -65,3 +79,5 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     return response(500, { error: "Internal server error" });
   }
 };
+
+export const handler = createHandler();

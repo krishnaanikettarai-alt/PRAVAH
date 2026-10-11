@@ -9,17 +9,17 @@ resources.
 ## Architecture
 
 - **Amazon API Gateway** exposes the HTTP API.
-- **AWS Lambda** runs the TypeScript health handler.
+- **AWS Lambda** runs the TypeScript health, citizen-report, and weather-risk
+  handlers.
 - **Amazon DynamoDB** provides the on-demand `ReportsTable` foundation.
 - **AWS SAM** defines and builds the serverless application locally.
 - **Node.js 22.x and TypeScript** provide the runtime and source language.
 
 The `STAGE` environment variable is configured by SAM, while `AWS_REGION` is
 read from Lambda's built-in runtime environment through the backend
-configuration module. The table name is not injected into the health function
-because no report handler consumes it yet; it will be provided through
-environment configuration when that API is introduced. No secrets are stored
-in the repository.
+configuration module. The reports and integrated weather-risk functions receive
+the DynamoDB table name through `REPORTS_TABLE_NAME`. No secrets are stored in
+the repository.
 
 ## Prerequisites
 
@@ -43,6 +43,16 @@ Compile TypeScript:
 ```powershell
 npm run build
 ```
+
+Run the backend unit and handler tests:
+
+```powershell
+npm test
+```
+
+These tests use mocked weather-provider and DynamoDB boundaries. They do not
+require AWS credentials, a deployed API, Docker, or an external weather
+provider.
 
 Build the SAM application:
 
@@ -80,9 +90,8 @@ curl http://127.0.0.1:3000/health
 
 The SAM template creates an on-demand `ReportsTable` with `reportId` as its
 string partition key. The report model is defined in
-`src/models/report.ts`, but no report read or write API is implemented in this
-phase. The table does not store image binaries; `imageKey` is reserved for a
-future S3 object reference.
+`src/models/report.ts`. The table does not store image binaries; `imageKey` is
+reserved for a future S3 object reference.
 
 ## Citizen reports API
 
@@ -105,6 +114,11 @@ and do not provide a point-in-time snapshot across pages. A geographic and
 time-oriented key or index should be designed before production scale.
 See [docs/api.md](../docs/api.md) for request fields, validation rules,
 response examples, and status codes.
+
+The automated tests mock DynamoDB and Open-Meteo. A live local API workflow
+requires SAM CLI and Docker, plus access to a configured DynamoDB table and
+internet access to Open-Meteo. The repository does not provision a local
+DynamoDB emulator automatically.
 
 ## Risk engine
 
